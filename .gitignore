@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+
+# Data files
+data/raw/
+data/processed/
+data/uploads/
+
+# Node
+node_modules/
+.next/
+dist/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Docker volumes
+postgres_data/
+qdrant_data/
+langfuse_data/
