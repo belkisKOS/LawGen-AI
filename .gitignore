@@ -36,3 +36,6 @@ data/final_chunks_v2/
 data/chunks_v3/
 data/final_chunks_v3/
 archive/chunking_v1/
+
+# Vector database
+data/chroma_db/
