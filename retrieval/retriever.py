@@ -9,7 +9,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 class LawGenRetriever:
 
     def __init__(self):
-
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
             model_kwargs={"device": "cpu"},
@@ -29,9 +28,16 @@ class LawGenRetriever:
         )
 
 
-    def normalize(self, text):
-
+    def normalize_digits(self, text):
         text = text or ""
+
+        return text.translate(
+            str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+        )
+
+
+    def normalize(self, text):
+        text = self.normalize_digits(text)
         text = text.lower()
         text = text.replace("ـ", "")
         text = re.sub(r"\s+", " ", text)
@@ -39,29 +45,57 @@ class LawGenRetriever:
         return text.strip()
 
 
-    def to_result(self, chunk, score=0):
+    def extract_article_numbers(self, text):
+        text = self.normalize(text)
 
+        numbers = re.findall(
+            r"المادة\s+([0-9]+)",
+            text
+        )
+
+        return set(numbers)
+
+
+    def to_result(self, chunk, score=0):
         return {
             "id": chunk.get("id", ""),
-            "text": chunk.get("text", ""),
+            "text": self.normalize_digits(chunk.get("text", "")),
             "score": score,
             "source_file": chunk.get("source_file", ""),
             "document_type": chunk.get("document_type", ""),
             "chunk_type": chunk.get("chunk_type", ""),
-            "title": chunk.get("title", ""),
+            "title": self.normalize_digits(chunk.get("title", "")),
             "page_start": chunk.get("page_start", ""),
             "page_end": chunk.get("page_end", ""),
-            "retrieval_label": chunk.get("retrieval_label", ""),
+            "retrieval_label": self.normalize_digits(
+                chunk.get("retrieval_label", "")
+            ),
         }
 
 
     def lexical_score(self, question, chunk):
-
         question_n = self.normalize(question)
         text_n = self.normalize(chunk.get("text", ""))
         title_n = self.normalize(chunk.get("title", ""))
 
         score = 0
+
+        question_articles = self.extract_article_numbers(question)
+        title_articles = self.extract_article_numbers(chunk.get("title", ""))
+        text_articles = self.extract_article_numbers(chunk.get("text", "")[:120])
+
+        # Exact article-number matching
+        for article_number in question_articles:
+            if article_number in title_articles:
+                score += 500
+
+            elif article_number in text_articles:
+                score += 450
+
+        # Penalize article chunks with other article numbers
+        if question_articles and title_articles:
+            if question_articles.isdisjoint(title_articles):
+                score -= 80
 
         exact_phrases = [
             "الإسلام دين الدولة",
@@ -108,8 +142,10 @@ class LawGenRetriever:
             if word_n in question_n and word_n in title_n:
                 score += 10
 
-        # Exact decree number handling
-        decree_match = re.search(r"(\d+)\s*-\s*(\d+)", question)
+        decree_match = re.search(
+            r"(\d+)\s*-\s*(\d+)",
+            self.normalize(question)
+        )
 
         if decree_match:
             number_a = decree_match.group(1)
@@ -127,7 +163,6 @@ class LawGenRetriever:
 
 
     def semantic_search(self, question, k=10):
-
         results = self.vectorstore.similarity_search_with_score(
             question,
             k=k,
@@ -136,7 +171,6 @@ class LawGenRetriever:
         output = []
 
         for doc, distance in results:
-
             metadata = doc.metadata or {}
 
             chunk = {
@@ -156,7 +190,10 @@ class LawGenRetriever:
                 score=float(distance),
             )
 
-            result["semantic_score"] = max(0, 100 - float(distance) * 100)
+            result["semantic_score"] = max(
+                0,
+                100 - float(distance) * 100,
+            )
 
             output.append(result)
 
@@ -164,18 +201,15 @@ class LawGenRetriever:
 
 
     def lexical_search(self, question, min_score=20):
-
         output = []
 
         for chunk in self.chunks:
-
             score = self.lexical_score(
                 question,
                 chunk,
             )
 
             if score >= min_score:
-
                 result = self.to_result(
                     chunk,
                     score=score,
@@ -189,7 +223,54 @@ class LawGenRetriever:
 
 
     def hybrid_search(self, question, k=10):
+        question_n = self.normalize(question)
+        requested_articles = self.extract_article_numbers(question)
 
+        # If the question explicitly asks for article numbers,
+        # use deterministic article retrieval first.
+        if requested_articles:
+            article_results = []
+
+            for chunk in self.chunks:
+                source_file = chunk.get("source_file", "")
+                title_articles = self.extract_article_numbers(
+                    chunk.get("title", "")
+                )
+
+                # If question says constitution, keep only constitution chunks
+                if "دستور" in question_n and source_file != "Constitution_extracted.txt":
+                    continue
+
+                for article_number in requested_articles:
+                    if article_number in title_articles:
+                        result = self.to_result(
+                            chunk,
+                            score=1000
+                        )
+
+                        result["lexical_score"] = 1000
+                        result["hybrid_score"] = 1000
+                        article_results.append(result)
+
+            # Keep only one best chunk per requested article number
+            unique_results = []
+            seen_articles = set()
+
+            for article_number in requested_articles:
+                for result in article_results:
+                    result_articles = self.extract_article_numbers(
+                        result.get("title", "")
+                    )
+
+                    if article_number in result_articles and article_number not in seen_articles:
+                        unique_results.append(result)
+                        seen_articles.add(article_number)
+                        break
+
+            if unique_results:
+                return unique_results[:k]
+
+        # Normal hybrid retrieval for general questions
         semantic_results = self.semantic_search(
             question,
             k=k,
@@ -203,38 +284,36 @@ class LawGenRetriever:
         merged = {}
 
         for result in semantic_results + lexical_results:
-
             key = result.get("id") or result.get("text")[:80]
 
             if key not in merged:
                 merged[key] = result
 
             else:
-                merged[key].update(
-                    {
-                        field: result.get(field) or merged[key].get(field)
-                        for field in result
-                    }
-                )
+                existing = merged[key]
 
-                merged[key]["semantic_score"] = max(
-                    merged[key].get("semantic_score", 0),
+                existing["semantic_score"] = max(
+                    existing.get("semantic_score", 0),
                     result.get("semantic_score", 0),
                 )
 
-                merged[key]["lexical_score"] = max(
-                    merged[key].get("lexical_score", 0),
+                existing["lexical_score"] = max(
+                    existing.get("lexical_score", 0),
                     result.get("lexical_score", 0),
+                )
+
+                existing["hybrid_score"] = (
+                    existing.get("semantic_score", 0)
+                    + existing.get("lexical_score", 0)
                 )
 
         final_results = []
 
         for result in merged.values():
-
-            semantic_score = result.get("semantic_score", 0)
-            lexical_score = result.get("lexical_score", 0)
-
-            result["hybrid_score"] = lexical_score + semantic_score
+            result["hybrid_score"] = (
+                result.get("semantic_score", 0)
+                + result.get("lexical_score", 0)
+            )
 
             final_results.append(result)
 

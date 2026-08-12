@@ -86,5 +86,6 @@ def build_index() -> None:
     print("Collection: lawgen_v3")
 
 
+
 if __name__ == "__main__":
     build_index()
