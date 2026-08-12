@@ -1,0 +1,17 @@
+[
+  {
+    "question": "ما هو دين الدولة حسب الدستور الجزائري؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 2"]
+  },
+  {
+    "question": "هل يمكن تعديل دين الدولة في الدستور الجزائري؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 223"]
+  },
+  {
+    "question": "اشرح لي العلاقة بين المادة 2 والمادة 223 في الدستور الجزائري.",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 2", "المادة 223"]
+  }
+]
