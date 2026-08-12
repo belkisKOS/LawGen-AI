@@ -13,5 +13,40 @@
     "question": "اشرح لي العلاقة بين المادة 2 والمادة 223 في الدستور الجزائري.",
     "expected_document": "Constitution_extracted.txt",
     "expected_articles": ["المادة 2", "المادة 223"]
+  },
+  {
+    "question": "ما هي عاصمة الجمهورية الجزائرية حسب الدستور؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 5"]
+  },
+  {
+    "question": "ما هي اللغة الوطنية والرسمية في الجزائر حسب الدستور؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 3"]
+  },
+  {
+    "question": "ما هو وضع تمازيغت في الدستور الجزائري؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 4"]
+  },
+  {
+    "question": "كيف يعرف الدستور الجنسية الجزائرية؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 63"]
+  },
+  {
+    "question": "ما موقف الجزائر من اللجوء إلى الحرب حسب الدستور؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 13"]
+  },
+  {
+    "question": "كيف ينظم الدستور التجارة الخارجية؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 32"]
+  },
+  {
+    "question": "ما موقف الجزائر من التعاون الدولي والعلاقات الودية بين الدول؟",
+    "expected_document": "Constitution_extracted.txt",
+    "expected_articles": ["المادة 33"]
   }
 ]

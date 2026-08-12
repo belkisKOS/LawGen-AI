@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -11,6 +12,35 @@ from rag.pipeline import LawGenPipeline
 
 
 QUESTIONS_PATH = PROJECT_ROOT / "eval" / "questions.json"
+
+
+def normalize_digits(text):
+    text = text or ""
+    return text.translate(
+        str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+    )
+
+
+def extract_article_numbers(text):
+    text = normalize_digits(text)
+    return set(
+        re.findall(r"المادة\s*([0-9]+)", text)
+    )
+
+
+def article_found(expected_article, retrieved_titles):
+    expected_numbers = extract_article_numbers(expected_article)
+
+    for title in retrieved_titles:
+        title_numbers = extract_article_numbers(title)
+
+        if expected_numbers and expected_numbers.intersection(title_numbers):
+            return True
+
+        if expected_article.strip() == title.strip():
+            return True
+
+    return False
 
 
 def main():
@@ -44,7 +74,7 @@ def main():
         print("RETRIEVED:", retrieved_titles)
 
         retrieval_ok = all(
-            expected in retrieved_titles
+            article_found(expected, retrieved_titles)
             for expected in expected_articles
         )
 
