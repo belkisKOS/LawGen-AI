@@ -1,129 +1,413 @@
 # LawGen AI
 
-LawGen AI is an Algerian legal AI assistant project based on a RAG architecture.
+LawGen AI is an Algerian legal AI assistant based on a Retrieval-Augmented Generation architecture.
 
-The goal is to retrieve reliable legal information from Algerian legal documents, then later generate answers using an LLM with clear legal references.
+The system retrieves relevant legal text from Algerian legal documents, builds a legal context, and uses a generative model to produce an answer with clear legal sources.
 
-## Current Status
+Current backend status:
 
-This branch focuses on the ingestion and retrieval pipeline.
+```text
+RAG core: working
+Gemma generation: working
+FastAPI /ask endpoint: working
+Evaluation: 20/20 on the current test set
+OCR: experimental and paused pending confirmation
+```
 
-Completed so far:
+---
 
-- Project structure setup
-- PDF text extraction
-- Legal document chunking
-- Final cleaned chunks generation
-- Embeddings creation
-- ChromaDB indexing
-- Semantic retrieval testing
-- Hybrid retrieval implementation
-- RAG context preparation
+## 1. Project Goal
 
-The LLM/API layer is not connected yet.
+LawGen AI aims to answer legal questions using Algerian legal sources.
 
-## Current RAG Pipeline
+The current version focuses on:
 
+- extracting text from legal PDFs
+- creating legal chunks
+- indexing chunks in ChromaDB
+- retrieving relevant chunks using hybrid retrieval
+- generating answers with Gemma through AI Grid
+- returning answers with legal sources
+- exposing the system through a FastAPI endpoint
+
+This project currently uses RAG, not fine-tuning.
+
+---
+
+## 2. Current Documents
+
+The current indexed legal documents are:
+
+```text
+data/raw/Constitution.pdf
+data/raw/JournalOff.pdf
+data/raw/LoiFinance2026.pdf
+```
+
+Processed and indexed sources include:
+
+```text
+Constitution_extracted.txt
+JournalOff_extracted.txt
+LoiFinance2026_extracted.txt
+```
+
+Current evaluation covers all three sources:
+
+```text
+Constitution: 10 questions
+Finance Law 2026: 5 questions
+Official Journal: 5 questions
+Total: 20 questions
+```
+
+Current result:
+
+```text
+Evaluation score: 20/20
+```
+
+---
+
+## 3. Architecture
+
+Current flow:
+
+```text
 PDF documents
-→ text extraction
-→ legal chunking
-→ final chunks
-→ embeddings
-→ ChromaDB
-→ hybrid retrieval
-→ RAG context
+    ↓
+Text extraction
+    ↓
+Legal chunking
+    ↓
+Metadata correction
+    ↓
+ChromaDB indexing
+    ↓
+Hybrid retrieval
+    ↓
+Context building
+    ↓
+Gemma generation
+    ↓
+Answer with sources
+```
 
-## Documents Used
+Main modules:
 
-Current legal sources:
+```text
+ingestion/       PDF extraction, chunking, indexing, OCR experiments
+retrieval/       Hybrid retriever
+rag/             Context builder and RAG pipeline
+reranking/       Context enhancement experiments
+llm/             Gemma API client
+eval/            Evaluation questions and runner
+api/             FastAPI backend
+scripts/         Utility scripts
+```
 
-- Algerian Constitution
-- Official Journal document
-- Finance Law 2026
+---
 
-## Chunking Strategy
+## 4. Branches
 
-The project uses legal-aware chunking instead of basic text splitting.
+Main working branches:
 
-Current chunking logic:
+```text
+phase-1-ingestion
+```
 
-- Constitution: article-based chunking
-- Finance Law 2026: article and table-based chunking
-- Official Journal: legal act-based chunking
+Stable branch containing:
 
-Final chunks are stored in:
+- legal chunking
+- Chroma indexing
+- hybrid retrieval
+- Gemma generation
+- 20-question evaluation
+- FastAPI `/ask` endpoint
 
-data/final_chunks_v3/final_chunks.json
+```text
+phase-2-ocr
+```
 
-Current final chunk count:
+Experimental branch containing DeepSeek OCR tests.
 
-491 chunks
+OCR is not yet integrated into the stable RAG pipeline because the current DeepSeek OCR output is not reliable on Arabic legal PDF pages.
 
-## Retrieval Strategy
+---
 
-Pure semantic retrieval was not accurate enough for legal references.
+## 5. Setup
 
-The project now uses hybrid retrieval:
+Create and activate the virtual environment:
 
-- semantic search
-- exact keyword matching
-- article/decree number matching
-- document source boosting
-- chunk type boosting
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
-## Successful Retrieval Tests
+Install dependencies:
 
-The current system correctly retrieves:
+```bash
+pip install -r requirements.txt
+```
 
-- Article 2 of the Constitution for the state religion question
-- Article 3 of the Constitution for the national and official language question
-- Article 2 of the Finance Law 2026 for estimated revenues
-- Presidential Decree 26-239 from the Official Journal
+---
 
-## Main Files
+## 6. Environment Variables
 
-- ingestion/extract_pdf.py
-- ingestion/build_chroma_index.py
-- retrieval/hybrid_retriever.py
-- rag/context_builder.py
-- chatbot_cli.py
-- rag_prompt_test.py
+Create a `.env` file in the project root.
 
-## Test Retrieval
+Required Gemma variables:
+
+```env
+GEMMA_API_KEY=your_gemma_api_key_here
+GEMMA_BASE_URL=https://app.ai-grid.io/v1
+GEMMA_MODEL=your_gemma_model_here
+```
+
+Experimental OCR variables:
+
+```env
+DEEPSEEK_OCR_API_KEY=your_deepseek_ocr_key_here
+DEEPSEEK_OCR_BASE_URL=https://app.ai-grid.io/v1
+DEEPSEEK_OCR_MODEL=deepseek-ocr
+```
+
+Important:
+
+```text
+Never commit .env
+Never paste API keys into GitHub
+Rotate exposed keys immediately
+```
+
+---
+
+## 7. Build the Chroma Index
+
+The Chroma vector database is generated locally and is not committed.
+
+To rebuild it:
+
+```bash
+rm -rf data/chroma_db
+python ingestion/build_chroma_index.py
+```
+
+Expected output:
+
+```text
+Chroma index created successfully.
+Location: data/chroma_db
+Collection: lawgen_v3
+```
+
+---
+
+## 8. Metadata Fixes
+
+Some extracted legal chunks may contain OCR or extraction errors in article titles.
+
+Example fixed issue:
+
+```text
+المادة ٣2
+```
+
+was corrected to:
+
+```text
+المادة 223
+```
+
+To apply metadata fixes:
+
+```bash
+python scripts/fix_chunk_metadata.py
+```
+
+Then rebuild Chroma:
+
+```bash
+rm -rf data/chroma_db
+python ingestion/build_chroma_index.py
+```
+
+---
+
+## 9. Run the CLI Chatbot
 
 Run:
 
-python chatbot_cli.py
+```bash
+python chatbot.py
+```
 
-Example questions:
+Example question:
 
+```text
 ما هو دين الدولة حسب الدستور الجزائري؟
-ما هي اللغة الوطنية والرسمية في الجزائر حسب الدستور؟
-ما قيمة الإيرادات المقدرة في قانون المالية لسنة 2026؟
-ما هو المرسوم الرئاسي رقم 26-239؟
+```
 
-## Test RAG Prompt Context
+Example answer:
+
+```text
+الإجابة:
+دين الدولة هو الإسلام.
+
+المصدر:
+- الوثيقة: Constitution_extracted.txt
+- المادة أو النص: المادة 2
+- الصفحة: 4-4
+```
+
+---
+
+## 10. Run Evaluation
 
 Run:
 
-python rag_prompt_test.py
+```bash
+python eval/run_eval.py
+```
 
-This shows the legal context that will later be sent to the LLM.
+Current expected result:
 
-## Next Steps
+```text
+EVALUATION SCORE: 20/20
+```
 
-Planned next steps:
+The evaluation checks whether the retriever brings the expected legal references from the expected documents.
 
-- Add offline chatbot output
-- Connect AI Grid or another OpenAI-compatible LLM API
-- Generate final legal answers from retrieved context
-- Add citations in the final response
-- Add FastAPI backend
-- Add frontend interface
-- Add document upload/admin workflow
+Current evaluation distribution:
 
-## Notes
+```text
+Constitution_extracted.txt: 10 questions
+LoiFinance2026_extracted.txt: 5 questions
+JournalOff_extracted.txt: 5 questions
+```
 
-The current version does not provide final legal advice.
+---
 
-It retrieves legal sources and prepares context for a future LLM answer layer.
+## 11. Run the FastAPI Backend
+
+Start the API server:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+API will run at:
+
+```text
+http://127.0.0.1:8000
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Ask endpoint:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/ask" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"ما هو دين الدولة حسب الدستور الجزائري؟"}'
+```
+
+Expected response format:
+
+```json
+{
+  "question": "ما هو دين الدولة حسب الدستور الجزائري؟",
+  "answer": "...",
+  "sources": [
+    {
+      "source_file": "Constitution_extracted.txt",
+      "title": "المادة 2",
+      "page_start": 4,
+      "page_end": 4,
+      "chunk_type": "article",
+      "score": 130,
+      "text_preview": "المادة 2\n: الإسلام دين الدولة."
+    }
+  ]
+}
+```
+
+---
+
+## 12. OCR Status
+
+DeepSeek OCR has been tested through AI Grid using the OpenAI-compatible `image_url` format.
+
+Current OCR findings:
+
+```text
+API connection: works
+Simple image OCR: partially works
+Full Arabic legal PDF page OCR: unreliable
+Cropped Arabic legal page OCR: unreliable
+```
+
+Because of this, OCR is currently paused and remains experimental on:
+
+```text
+phase-2-ocr
+```
+
+OCR will not be merged into the stable RAG pipeline until the correct model format and settings are confirmed.
+
+---
+
+## 13. Current Limitations
+
+Current limitations:
+
+- evaluation checks retrieval correctness more than full legal answer quality
+- generated data and Chroma index are local and ignored by Git
+- some extraction metadata may still require cleaning
+- API currently returns retrieved sources, not only final answer-used sources
+- conversation history is not yet implemented
+- OCR is not production-ready
+
+---
+
+## 14. Next Roadmap
+
+Next development steps:
+
+```text
+1. Improve API response structure
+2. Separate main sources from retrieved sources
+3. Add API tests
+4. Improve evaluation with expected answer phrases
+5. Add negative questions to test hallucination resistance
+6. Add conversation history
+7. Resume OCR after Hichem confirms the correct DeepSeek OCR setup
+8. Connect frontend to FastAPI
+9. Prepare deployment
+```
+
+---
+
+## 15. Current Stable Checkpoint
+
+Stable branch:
+
+```text
+phase-1-ingestion
+```
+
+Current confirmed capabilities:
+
+```text
+RAG retrieval: working
+Gemma generation: working
+Source citation: working
+Evaluation: 20/20
+FastAPI endpoint: working
+OCR: experimental only
+```
+
