@@ -21,23 +21,48 @@ def normalize_digits(text):
     )
 
 
-def extract_article_numbers(text):
+def normalize_ref(text):
     text = normalize_digits(text)
+    text = text.lower()
+    text = text.replace("ـ", "")
+    text = re.sub(r"\s*-\s*", "-", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def extract_article_numbers(text):
+    text = normalize_ref(text)
     return set(
         re.findall(r"المادة\s*([0-9]+)", text)
     )
 
 
-def article_found(expected_article, retrieved_titles):
-    expected_numbers = extract_article_numbers(expected_article)
+def reference_found(expected_reference, expected_document, results):
+    expected_numbers = extract_article_numbers(expected_reference)
+    expected_ref = normalize_ref(expected_reference)
 
-    for title in retrieved_titles:
-        title_numbers = extract_article_numbers(title)
+    for result in results:
+        source_file = result.get("source_file", "")
 
-        if expected_numbers and expected_numbers.intersection(title_numbers):
-            return True
+        if expected_document and source_file != expected_document:
+            continue
 
-        if expected_article.strip() == title.strip():
+        haystack = " ".join(
+            [
+                result.get("title", ""),
+                result.get("retrieval_label", ""),
+                result.get("text", "")[:500],
+            ]
+        )
+
+        haystack_ref = normalize_ref(haystack)
+        haystack_numbers = extract_article_numbers(haystack)
+
+        if expected_numbers:
+            if expected_numbers.intersection(haystack_numbers):
+                return True
+
+        elif expected_ref in haystack_ref:
             return True
 
     return False
@@ -55,7 +80,8 @@ def main():
 
     for index, item in enumerate(questions, start=1):
         question = item["question"]
-        expected_articles = item.get("expected_articles", [])
+        expected_document = item.get("expected_document", "")
+        expected_references = item.get("expected_articles", [])
 
         print("=" * 80)
         print(f"TEST {index}/{total}")
@@ -66,16 +92,20 @@ def main():
             k=5
         )
 
-        retrieved_titles = [
-            result.get("title", "")
+        retrieved = [
+            f"{result.get('title', '')} [{result.get('source_file', '')}]"
             for result in results
         ]
 
-        print("RETRIEVED:", retrieved_titles)
+        print("RETRIEVED:", retrieved)
 
         retrieval_ok = all(
-            article_found(expected, retrieved_titles)
-            for expected in expected_articles
+            reference_found(
+                expected,
+                expected_document,
+                results,
+            )
+            for expected in expected_references
         )
 
         answer = bot.ask(question)
@@ -88,7 +118,8 @@ def main():
             print("RESULT: PASS ✅")
         else:
             print("RESULT: FAIL ❌")
-            print("EXPECTED:", expected_articles)
+            print("EXPECTED DOCUMENT:", expected_document)
+            print("EXPECTED REFERENCES:", expected_references)
 
     print("=" * 80)
     print(f"EVALUATION SCORE: {passed}/{total}")

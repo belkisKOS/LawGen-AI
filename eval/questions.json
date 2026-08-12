@@ -48,5 +48,55 @@
     "question": "ما موقف الجزائر من التعاون الدولي والعلاقات الودية بين الدول؟",
     "expected_document": "Constitution_extracted.txt",
     "expected_articles": ["المادة 33"]
+  },
+  {
+    "question": "ما قيمة الإيرادات والحواصل والمداخيل المقدرة في قانون المالية لسنة 2026؟",
+    "expected_document": "LoiFinance2026_extracted.txt",
+    "expected_articles": ["المادة 2"]
+  },
+  {
+    "question": "ماذا تنص المادة 3 من قانون المالية لسنة 2026 بخصوص رخص الالتزام؟",
+    "expected_document": "LoiFinance2026_extracted.txt",
+    "expected_articles": ["المادة 3"]
+  },
+  {
+    "question": "ما الغرض من مساهمة هيئات الضمان الاجتماعي في قانون المالية لسنة 2026؟",
+    "expected_document": "LoiFinance2026_extracted.txt",
+    "expected_articles": ["المادة 4"]
+  },
+  {
+    "question": "ماذا تنص المادة 1 من قانون المالية لسنة 2026 بخصوص تحصيل الضرائب والمداخيل؟",
+    "expected_document": "LoiFinance2026_extracted.txt",
+    "expected_articles": ["المادة 1"]
+  },
+  {
+    "question": "ما رقم القانون الذي يتضمن قانون المالية لسنة 2026؟",
+    "expected_document": "LoiFinance2026_extracted.txt",
+    "expected_articles": ["قانون رقم 25-17"]
+  },
+  {
+    "question": "ما موضوع المرسوم الرئاسي رقم 26-239؟",
+    "expected_document": "JournalOff_extracted.txt",
+    "expected_articles": ["26-239"]
+  },
+  {
+    "question": "ما موضوع المرسوم الرئاسي رقم 26-240؟",
+    "expected_document": "JournalOff_extracted.txt",
+    "expected_articles": ["26-240"]
+  },
+  {
+    "question": "ما موضوع المرسوم الرئاسي رقم 26-241؟",
+    "expected_document": "JournalOff_extracted.txt",
+    "expected_articles": ["26-241"]
+  },
+  {
+    "question": "ما موضوع المرسوم الرئاسي رقم 26-242؟",
+    "expected_document": "JournalOff_extracted.txt",
+    "expected_articles": ["26-242"]
+  },
+  {
+    "question": "ما موضوع المرسوم الرئاسي رقم 26-259؟",
+    "expected_document": "JournalOff_extracted.txt",
+    "expected_articles": ["26-259"]
   }
 ]

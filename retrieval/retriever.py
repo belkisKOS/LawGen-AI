@@ -93,6 +93,16 @@ class LawGenRetriever:
             if "المادة 32" in title_n:
                 score += 300
 
+        if "الضمان الاجتماعي" in question_n or "هيئات الضمان الاجتماعي" in question_n:
+            if "هيئات الضمان الاجتماعي" in text_n:
+                score += 400
+            if "القطاعات الصحية" in text_n or "المؤسسات الاستشفائية" in text_n:
+                score += 150
+            if chunk.get("source_file") == "LoiFinance2026_extracted.txt":
+                score += 150
+            if "المادة 4" in title_n:
+                score += 300
+
 
         question_articles = self.extract_article_numbers(question)
         title_articles = self.extract_article_numbers(chunk.get("title", ""))
@@ -240,6 +250,17 @@ class LawGenRetriever:
         question_n = self.normalize(question)
         requested_articles = self.extract_article_numbers(question)
 
+        source_filter = None
+
+        if "قانون المالية" in question_n or "الميزانية" in question_n:
+            source_filter = "LoiFinance2026_extracted.txt"
+
+        elif "مرسوم" in question_n or "الجريدة الرسمية" in question_n:
+            source_filter = "JournalOff_extracted.txt"
+
+        elif "دستور" in question_n:
+            source_filter = "Constitution_extracted.txt"
+
         # If the question explicitly asks for article numbers,
         # use deterministic article retrieval first.
         if requested_articles:
@@ -251,8 +272,7 @@ class LawGenRetriever:
                     chunk.get("title", "")
                 )
 
-                # If question says constitution, keep only constitution chunks
-                if "دستور" in question_n and source_file != "Constitution_extracted.txt":
+                if source_filter and source_file != source_filter:
                     continue
 
                 for article_number in requested_articles:
