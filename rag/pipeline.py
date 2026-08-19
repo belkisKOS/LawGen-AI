@@ -1,5 +1,6 @@
 from retrieval.retriever import LawGenRetriever
 from rag.context_builder import build_context, build_legal_prompt
+from rag.query_reformulator import reformulate_legal_query
 from llm.gemma_client import GemmaClient
 
 
@@ -33,8 +34,10 @@ class LawGenPipeline:
 
 
     def ask_with_sources(self, question):
+        retrieval_question = reformulate_legal_query(question)
+
         results = self.retriever.hybrid_search(
-            question,
+            retrieval_question,
             k=5
         )
 
@@ -52,6 +55,7 @@ class LawGenPipeline:
 
         return {
             "question": question,
+            "reformulated_question": retrieval_question,
             "answer": answer,
             "sources": self.format_sources(results),
         }

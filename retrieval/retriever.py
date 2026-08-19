@@ -103,6 +103,21 @@ class LawGenRetriever:
             if "المادة 4" in title_n:
                 score += 300
 
+        if (
+            "الإيرادات" in question_n
+            or "ايرادات" in question_n
+            or "الحواصل" in question_n
+            or "المداخيل" in question_n
+        ):
+            if chunk.get("source_file") == "LoiFinance2026_extracted.txt":
+                score += 200
+            if "الإيرادات والحواصل والمداخيل" in text_n:
+                score += 500
+            if "تقدر الإيرادات" in text_n or "تقدر الايرادات" in text_n:
+                score += 400
+            if "المادة 2" in title_n:
+                score += 300
+
 
         question_articles = self.extract_article_numbers(question)
         title_articles = self.extract_article_numbers(chunk.get("title", ""))
