@@ -1,14 +1,9 @@
-def reformulate_legal_query(question: str) -> str:
+def rule_based_reformulation(question: str) -> str:
     """
-    Reformulate a user's question into a clearer legal retrieval query.
+    Deterministic legal hints.
 
-    This function is used only for retrieval.
-    The final answer should still be based on the original user question.
-
-    Version 1 is rule-based and safe:
-    - no extra API call
-    - no hallucination risk
-    - deterministic behavior
+    This is a safety layer. It helps retrieval with known legal concepts.
+    It does not use an LLM.
     """
 
     original_question = question.strip()
@@ -90,33 +85,156 @@ def reformulate_legal_query(question: str) -> str:
             "النصوص المنشورة في الجريدة الرسمية الجزائرية"
         )
 
-    # If no legal hint was detected, return the original question.
     if not legal_hints:
-        return original_question
+        return ""
 
-    # Add legal hints without replacing the user's original wording.
-    # This improves retrieval while keeping the query understandable.
     unique_hints = []
+
     for hint in legal_hints:
         if hint not in unique_hints:
             unique_hints.append(hint)
 
-    return original_question + "\n\nصياغة قانونية للبحث:\n" + "\n".join(
+    return "\n".join(
         f"- {hint}" for hint in unique_hints
     )
+
+
+def build_ai_reformulation_prompt(question: str, rule_hints: str) -> str:
+    """
+    Build a strict prompt for AI legal query reformulation.
+
+    The model must not answer the legal question.
+    It only rewrites the question into a better retrieval query.
+    """
+
+    return f"""
+أنت محرك لإعادة صياغة الأسئلة القانونية داخل نظام بحث قانوني جزائري.
+
+مهمتك:
+- لا تجب عن السؤال.
+- لا تقدم رأيا قانونيا.
+- أعد صياغة السؤال فقط إلى سؤال قانوني واضح ودقيق يساعد على البحث في النصوص القانونية الجزائرية.
+- حافظ على كل أرقام المواد، أرقام المراسيم، أرقام القوانين، السنوات، التواريخ، والمبالغ كما هي.
+- إذا كان السؤال باللهجة أو بالفرنسية، حوّله إلى عربية قانونية واضحة.
+- إذا كان السؤال يتحدث عن الدستور، اذكر "الدستور الجزائري".
+- إذا كان السؤال يتحدث عن قانون المالية، اذكر "قانون المالية لسنة 2026".
+- إذا كان السؤال يتحدث عن مرسوم، اذكر "الجريدة الرسمية الجزائرية" و"المرسوم".
+- أرجع سطرا واحدا فقط.
+- لا تضع شرحا.
+- لا تضع مقدمة.
+- لا تضع نقاطا.
+
+السؤال الأصلي:
+{question}
+
+مؤشرات قانونية مساعدة:
+{rule_hints if rule_hints else "لا توجد مؤشرات محددة"}
+
+الصياغة القانونية للبحث:
+""".strip()
+
+
+def clean_ai_reformulation(text: str) -> str:
+    """
+    Clean the AI output so we keep only the reformulated query.
+    """
+
+    text = (text or "").strip()
+
+    prefixes = [
+        "الصياغة القانونية للبحث:",
+        "السؤال القانوني:",
+        "إعادة الصياغة:",
+    ]
+
+    for prefix in prefixes:
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+
+    # Keep only first non-empty line if model returns multiple lines.
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip()
+    ]
+
+    if not lines:
+        return ""
+
+    return lines[0]
+
+
+def ai_reformulation(question: str, llm_client, rule_hints: str) -> str:
+    """
+    Use the LLM to reformulate the question.
+
+    If the LLM fails, return an empty string.
+    """
+
+    if llm_client is None:
+        return ""
+
+    prompt = build_ai_reformulation_prompt(
+        question=question,
+        rule_hints=rule_hints,
+    )
+
+    try:
+        output = llm_client.generate(prompt)
+        return clean_ai_reformulation(output)
+
+    except Exception as error:
+        print("Query reformulation failed:", error)
+        return ""
+
+
+def reformulate_legal_query(question: str, llm_client=None) -> str:
+    """
+    Final reformulation function.
+
+    It combines:
+    - original user question
+    - AI reformulation if available
+    - rule-based legal hints
+
+    This combined query is used for retrieval only.
+    """
+
+    original_question = question.strip()
+
+    rule_hints = rule_based_reformulation(original_question)
+
+    ai_query = ai_reformulation(
+        question=original_question,
+        llm_client=llm_client,
+        rule_hints=rule_hints,
+    )
+
+    parts = [original_question]
+
+    if ai_query and ai_query not in parts:
+        parts.append("صياغة قانونية بالذكاء الاصطناعي:")
+        parts.append(ai_query)
+
+    if rule_hints:
+        parts.append("مؤشرات قانونية:")
+        parts.append(rule_hints)
+
+    return "\n\n".join(parts)
 
 
 if __name__ == "__main__":
     test_questions = [
         "واش يقول القانون على دين الدولة؟",
-        "ما هو وضع تمازيغت في الدستور الجزائري؟",
-        "ما قيمة الإيرادات في قانون المالية 2026؟",
-        "ما موضوع المرسوم الرئاسي رقم 26-239؟",
+        "هل يقدرو يبدلو دين الدولة في الدستور؟",
+        "شنو وضع تمازيغت في الدستور؟",
+        "قداش الإيرادات في قانون المالية 2026؟",
+        "c'est quoi le décret 26-239 ?",
     ]
 
     for question in test_questions:
         print("=" * 80)
         print("Original:")
         print(question)
-        print("\nReformulated:")
+        print("\nRule-based only:")
         print(reformulate_legal_query(question))
