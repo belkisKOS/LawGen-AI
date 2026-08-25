@@ -99,13 +99,26 @@ def rule_based_reformulation(question: str) -> str:
     )
 
 
-def build_ai_reformulation_prompt(question: str, rule_hints: str) -> str:
+def build_ai_reformulation_prompt(
+    question: str,
+    rule_hints: str,
+    history=None
+) -> str:
     """
     Build a strict prompt for AI legal query reformulation.
 
     The model must not answer the legal question.
     It only rewrites the question into a better retrieval query.
     """
+    conversation = ""
+
+    if history:
+        conversation = "\n".join(
+            [
+                f"{msg['role']}: {msg['content']}"
+                for msg in history
+            ]
+        )
 
     return f"""
 أنت محرك لإعادة صياغة الأسئلة القانونية داخل نظام بحث قانوني جزائري.
@@ -124,7 +137,10 @@ def build_ai_reformulation_prompt(question: str, rule_hints: str) -> str:
 - لا تضع مقدمة.
 - لا تضع نقاطا.
 
-السؤال الأصلي:
+المحادثة السابقة:
+{conversation if conversation else "لا توجد محادثة سابقة"}
+
+السؤال الحالي:
 {question}
 
 مؤشرات قانونية مساعدة:
@@ -164,7 +180,12 @@ def clean_ai_reformulation(text: str) -> str:
     return lines[0]
 
 
-def ai_reformulation(question: str, llm_client, rule_hints: str) -> str:
+def ai_reformulation(
+    question: str,
+    llm_client,
+    rule_hints: str,
+    history=None
+) -> str:
     """
     Use the LLM to reformulate the question.
 
@@ -175,8 +196,9 @@ def ai_reformulation(question: str, llm_client, rule_hints: str) -> str:
         return ""
 
     prompt = build_ai_reformulation_prompt(
-        question=question,
-        rule_hints=rule_hints,
+         question=question,
+         rule_hints=rule_hints,
+         history=history,
     )
 
     try:
@@ -188,7 +210,11 @@ def ai_reformulation(question: str, llm_client, rule_hints: str) -> str:
         return ""
 
 
-def reformulate_legal_query(question: str, llm_client=None) -> str:
+def reformulate_legal_query(
+    question: str,
+    llm_client=None,
+    history=None
+) -> str:
     """
     Final reformulation function.
 
@@ -208,6 +234,7 @@ def reformulate_legal_query(question: str, llm_client=None) -> str:
         question=original_question,
         llm_client=llm_client,
         rule_hints=rule_hints,
+        history=history,
     )
 
     parts = [original_question]

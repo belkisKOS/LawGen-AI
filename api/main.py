@@ -23,8 +23,14 @@ app = FastAPI(
 bot = LawGenPipeline()
 
 
+class Message(BaseModel):
+    role: str
+    content: str
+
+
 class AskRequest(BaseModel):
     question: str
+    history: List[Message] = []
 
 
 class Source(BaseModel):
@@ -62,4 +68,15 @@ def health():
 
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest):
-    return bot.ask_with_sources(request.question)
+    history = [
+        {
+            "role": msg.role,
+            "content": msg.content
+        }
+        for msg in request.history
+    ]
+
+    return bot.ask_with_sources(
+        request.question,
+        history=history
+    )

@@ -33,10 +33,11 @@ class LawGenPipeline:
         return sources
 
 
-    def ask_with_sources(self, question):
+    def ask_with_sources(self, question, history=None):
         retrieval_question = reformulate_legal_query(
             question,
             llm_client=self.llm,
+            history=history,
         )
 
         results = self.retriever.hybrid_search(
