@@ -1,4 +1,4 @@
-# Python
+`# Python
 .venv/
 __pycache__/
 *.pyc
@@ -27,3 +27,46 @@ dist/
 postgres_data/
 qdrant_data/
 langfuse_data/
+
+data/chunks/
+
+# Generated chunking outputs
+data/chunks_v2/
+data/final_chunks_v2/
+data/chunks_v3/
+data/final_chunks_v3/
+archive/chunking_v1/
+
+# Vector database
+data/chroma_db/
+
+# Environment variables
+.env
+
+# Environment variables
+.env
+
+# Vector database
+data/chroma_db/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac files
+.DS_Store
+
+# Environment variables
+.env
+.env.example
+
+# Vector database
+data/chroma_db/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac files
+.DS_Store
+data/
