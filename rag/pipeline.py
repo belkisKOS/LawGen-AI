@@ -60,10 +60,42 @@ class LawGenPipeline:
             "question": question,
             "reformulated_question": retrieval_question,
             "answer": answer,
-            "sources": self.format_sources(results),
+            "sources": self.format_sources
+                (self.select_main_sources(results)),
         }
 
 
     def ask(self, question):
         response = self.ask_with_sources(question)
         return response["answer"]
+
+    def select_main_sources(self, results, max_sources=3):
+
+        if not results:
+            return []
+
+        top_score = results[0].get(
+            "hybrid_score",
+            results[0].get("score", 0)
+        )
+
+        if top_score == 0:
+            return results[:max_sources]
+
+        selected = []
+
+        for item in results:
+            score = item.get(
+                "hybrid_score",
+                item.get("score", 0)
+            )
+
+            # keep only sources close to best match
+            if score >= top_score * 0.5:
+                selected.append(item)
+
+            if len(selected) >= max_sources:
+                break
+
+        return selected
+    

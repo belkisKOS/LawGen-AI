@@ -39,6 +39,7 @@ class Source(BaseModel):
 
 class AskResponse(BaseModel):
     question: str
+    reformulated_question: str
     answer: str
     sources: List[Source]
 
