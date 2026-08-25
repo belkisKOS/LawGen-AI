@@ -11,7 +11,7 @@ from openai import OpenAI
 load_dotenv()
 
 
-def render_pdf_page_to_jpeg(
+def render_pdf_page_to_png(
     pdf_path: Path,
     page_number: int,
     output_image_path: Path,
@@ -39,7 +39,7 @@ def render_pdf_page_to_jpeg(
 
     document.close()
 
-    return f"data:image/jpeg;base64,{encoded}"
+    return f"data:image/png;base64,{encoded}"
 
 
 def run_ocr(pdf_path: Path, page_number: int, output_image_path: Path) -> str:
@@ -55,19 +55,13 @@ def run_ocr(pdf_path: Path, page_number: int, output_image_path: Path) -> str:
         base_url=base_url,
     )
 
-    image_url = render_pdf_page_to_jpeg(
+    image_url = render_pdf_page_to_png(
         pdf_path=pdf_path,
         page_number=page_number,
         output_image_path=output_image_path,
     )
 
-    prompt = (
-        "You are an OCR engine for Algerian legal documents. "
-        "Extract all readable Arabic and French text from the image. "
-        "Preserve the reading order from top to bottom and right to left for Arabic. "
-        "Preserve article numbers, decree numbers, dates, amounts, tables, and punctuation. "
-        "Return plain text only. Do not explain."
-    )
+    prompt = "Extract all readable text from this document."
 
     response = client.chat.completions.create(
         model=model,
@@ -88,7 +82,7 @@ def run_ocr(pdf_path: Path, page_number: int, output_image_path: Path) -> str:
                 ],
             }
         ],
-        max_tokens=2048,
+        max_tokens=1024,
         temperature=0,
     )
 
@@ -115,7 +109,7 @@ def main():
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-    output_image_path = output_path.with_suffix(".jpg")
+    output_image_path = output_path.with_suffix(".png")
 
     text = run_ocr(
         pdf_path=pdf_path,
