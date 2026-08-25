@@ -20,7 +20,22 @@ def extract_text_from_pdf(pdf_path: Path, output_path: Path) -> None:
     extracted_pages = []
 
     for page_number, page in enumerate(document, start=1):
-        text = page.get_text("text")
+        text = page.get_text("text").strip()
+
+        if len(text) < 20:
+            from ingestion.ocr_fallback import extract_page_with_ocr
+
+            print(
+                f"⚠️ Page {page_number} has little text. Using OCR..."
+            )
+
+            text = (
+    "[OCR GENERATED PAGE]\n\n"
+    + extract_page_with_ocr(
+        pdf_path,
+        page_number
+    )
+)
 
         page_content = (
             f"\n\n--- PAGE {page_number} ---\n\n"
