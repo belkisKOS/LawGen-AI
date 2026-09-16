@@ -1,8 +1,11 @@
 import sys
+import shutil
+import tempfile
 from pathlib import Path
+from pathlib import Path as PathLib
 from typing import List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
 
@@ -11,6 +14,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 from rag.pipeline import LawGenPipeline
+from api.document_validation import check_basic_rules, classify_with_llm
+from api.document_ingest import ingest_document
+from ingestion.extract_generic import extract_text_generic
 
 
 app = FastAPI(
@@ -80,3 +86,55 @@ def ask(request: AskRequest):
         request.question,
         history=history
     )
+
+
+@app.post("/documents/validate")
+async def validate_document(file: UploadFile = File(...)):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=PathLib(file.filename).suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = PathLib(tmp.name)
+
+    try:
+        text = extract_text_generic(tmp_path)
+        ok, reason, already_present = check_basic_rules(tmp_path, text)
+
+        if not ok:
+            return {"valid": False, "reason": reason, "already_present": False}
+
+        if already_present:
+            return {"valid": True, "reason": "OK", "already_present": True}
+
+        is_legal, llm_reason = classify_with_llm(text, bot.llm.generate)
+        if not is_legal:
+            return {
+                "valid": False,
+                "reason": f"Not recognized as an Algerian legal document: {llm_reason}",
+                "already_present": False,
+            }
+
+        return {"valid": True, "reason": "OK", "already_present": False}
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@app.post("/documents/ingest")
+async def ingest_document_route(file: UploadFile = File(...)):
+    tmp_dir = tempfile.mkdtemp()
+    original_name = file.filename or "uploaded_file"
+    tmp_path = PathLib(tmp_dir) / original_name
+
+    with open(tmp_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        chunk_ids = ingest_document(tmp_path, bot.retriever)
+        return {"chunk_ids": chunk_ids}
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        try:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass

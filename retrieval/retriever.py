@@ -21,12 +21,20 @@ class LawGenRetriever:
             embedding_function=self.embeddings,
         )
 
-        self.chunks = json.loads(
-            Path("data/final_chunks_v3/final_chunks.json").read_text(
-                encoding="utf-8"
-            )
+        self.reload_chunks()
+
+    def reload_chunks(self):
+        """Re-read curated + uploaded chunk files into memory. Call after ingest/delete."""
+        curated = json.loads(
+            Path("data/final_chunks_v3/final_chunks.json").read_text(encoding="utf-8")
         )
 
+        uploaded_path = Path("data/uploaded_chunks.json")
+        uploaded = []
+        if uploaded_path.exists():
+            uploaded = json.loads(uploaded_path.read_text(encoding="utf-8"))
+
+        self.chunks = curated + uploaded
 
     def normalize_digits(self, text):
         text = text or ""
