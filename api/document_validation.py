@@ -2,10 +2,18 @@ import hashlib
 import json
 from pathlib import Path
 
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
 HASH_LOG = Path("data/upload_hashes.json")
 MIN_WORDS = 50
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+class DocumentValidationError(Exception):
+    """Raised when validation cannot be completed (e.g. the LLM check itself fails)."""
 
 
 def compute_hash(text: str) -> str:
@@ -15,14 +23,21 @@ def compute_hash(text: str) -> str:
 def load_hash_log() -> set:
     if not HASH_LOG.exists():
         return set()
-    return set(json.loads(HASH_LOG.read_text(encoding="utf-8")))
+    try:
+        return set(json.loads(HASH_LOG.read_text(encoding="utf-8")))
+    except Exception as error:
+        logger.warning("Could not read %s, treating as empty: %s", HASH_LOG, error)
+        return set()
 
 
 def save_hash(file_hash: str) -> None:
-    hashes = load_hash_log()
-    hashes.add(file_hash)
-    HASH_LOG.parent.mkdir(parents=True, exist_ok=True)
-    HASH_LOG.write_text(json.dumps(list(hashes)), encoding="utf-8")
+    try:
+        hashes = load_hash_log()
+        hashes.add(file_hash)
+        HASH_LOG.parent.mkdir(parents=True, exist_ok=True)
+        HASH_LOG.write_text(json.dumps(list(hashes)), encoding="utf-8")
+    except Exception as error:
+        logger.error("Failed to save upload hash: %s", error)
 
 
 def check_basic_rules(file_path: Path, text: str) -> tuple[bool, str, bool]:
@@ -61,7 +76,14 @@ def classify_with_llm(text: str, llm_generate_fn) -> tuple[bool, str]:
         f"TEXT:\n{sample}"
     )
 
-    response = llm_generate_fn(prompt).strip()
+    try:
+        response = llm_generate_fn(prompt).strip()
+    except Exception as error:
+        logger.exception("LLM call failed during document classification.")
+        raise DocumentValidationError(
+            f"Could not verify document with the AI model: {error}"
+        ) from error
+
     first_line = response.splitlines()[0].strip().upper() if response else ""
 
     is_legal = first_line.startswith("YES")
