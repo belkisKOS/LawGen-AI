@@ -5,29 +5,55 @@ from pathlib import Path
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class RetrieverInitError(Exception):
+    """Raised when the retriever (Chroma / embeddings / chunk files) fails to load."""
+
 
 class LawGenRetriever:
 
     def __init__(self):
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
-        )
+        try:
+            logger.info("Loading embedding model...")
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+                model_kwargs={"device": "cpu"},
+                encode_kwargs={"normalize_embeddings": True},
+            )
+        except Exception as error:
+            logger.exception("Failed to load the embedding model.")
+            raise RetrieverInitError(f"Embedding model failed to load: {error}") from error
 
-        self.vectorstore = Chroma(
-            collection_name="lawgen_v3",
-            persist_directory="data/chroma_db",
-            embedding_function=self.embeddings,
-        )
+        try:
+            logger.info("Connecting to Chroma at data/chroma_db...")
+            self.vectorstore = Chroma(
+                collection_name="lawgen_v3",
+                persist_directory="data/chroma_db",
+                embedding_function=self.embeddings,
+            )
+        except Exception as error:
+            logger.exception("Failed to connect to Chroma.")
+            raise RetrieverInitError(f"Chroma connection failed: {error}") from error
 
-        self.reload_chunks()
+        try:
+            self.reload_chunks()
+        except Exception as error:
+            logger.exception("Failed to load chunk manifest files.")
+            raise RetrieverInitError(f"Chunk manifest loading failed: {error}") from error
+
+        logger.info("LawGenRetriever ready (%d chunks loaded).", len(self.chunks))
 
     def reload_chunks(self):
         """Re-read curated + uploaded chunk files into memory. Call after ingest/delete."""
-        curated = json.loads(
-            Path("data/final_chunks_v3/final_chunks.json").read_text(encoding="utf-8")
-        )
+        curated_path = Path("data/final_chunks_v3/final_chunks.json")
+        if not curated_path.exists():
+            raise FileNotFoundError(f"Missing curated chunk file: {curated_path}")
+
+        curated = json.loads(curated_path.read_text(encoding="utf-8"))
 
         uploaded_path = Path("data/uploaded_chunks.json")
         uploaded = []
@@ -35,6 +61,17 @@ class LawGenRetriever:
             uploaded = json.loads(uploaded_path.read_text(encoding="utf-8"))
 
         self.chunks = curated + uploaded
+
+    def check_connection(self) -> tuple[bool, str]:
+        """Cheap check for /health: confirms Chroma is actually reachable and has data."""
+        try:
+            count = self.vectorstore._collection.count()
+            if count == 0:
+                return False, "Chroma collection is reachable but empty (0 vectors)."
+            return True, f"ok ({count} vectors, {len(self.chunks)} chunks loaded)"
+        except Exception as error:
+            logger.warning("Chroma connectivity check failed: %s", error)
+            return False, str(error)
 
     def normalize_digits(self, text):
         text = text or ""

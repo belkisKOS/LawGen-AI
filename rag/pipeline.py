@@ -1,17 +1,50 @@
-from retrieval.retriever import LawGenRetriever
+from retrieval.retriever import LawGenRetriever, RetrieverInitError
 from rag.context_builder import build_context, build_legal_prompt
 from rag.query_reformulator import reformulate_legal_query
-from llm.gemma_client import GemmaClient
+from llm.gemma_client import GemmaClient, GemmaClientError
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class PipelineError(Exception):
+    """Raised when answering a question fails for a known, identifiable reason."""
 
 
 class LawGenPipeline:
 
     def __init__(self):
-        print("Loading retriever...")
-        self.retriever = LawGenRetriever()
+        self.ready = False
+        self.init_error = None
+        self.retriever = None
+        self.llm = None
 
-        print("Loading Gemma...")
-        self.llm = GemmaClient()
+        try:
+            logger.info("Loading retriever...")
+            self.retriever = LawGenRetriever()
+        except RetrieverInitError as error:
+            self.init_error = f"Retriever failed to load: {error}"
+            logger.error(self.init_error)
+            return
+        except Exception as error:
+            self.init_error = f"Unexpected error loading retriever: {error}"
+            logger.exception(self.init_error)
+            return
+
+        try:
+            logger.info("Loading Gemma...")
+            self.llm = GemmaClient()
+        except GemmaClientError as error:
+            self.init_error = f"LLM client failed to load: {error}"
+            logger.error(self.init_error)
+            return
+        except Exception as error:
+            self.init_error = f"Unexpected error loading LLM client: {error}"
+            logger.exception(self.init_error)
+            return
+
+        self.ready = True
+        logger.info("LawGenPipeline ready.")
 
 
     def format_sources(self, results):
@@ -34,16 +67,29 @@ class LawGenPipeline:
 
 
     def ask_with_sources(self, question, history=None):
-        retrieval_question = reformulate_legal_query(
-            question,
-            llm_client=self.llm,
-            history=history,
-        )
+        if not self.ready:
+            raise PipelineError(
+                f"Pipeline is not ready: {self.init_error or 'unknown initialization error'}"
+            )
 
-        results = self.retriever.hybrid_search(
-            retrieval_question,
-            k=5
-        )
+        try:
+            retrieval_question = reformulate_legal_query(
+                question,
+                llm_client=self.llm,
+                history=history,
+            )
+        except Exception as error:
+            logger.exception("Query reformulation failed for question: %s", question)
+            raise PipelineError(f"Query reformulation failed: {error}") from error
+
+        try:
+            results = self.retriever.hybrid_search(
+                retrieval_question,
+                k=5
+            )
+        except Exception as error:
+            logger.exception("Retrieval failed for question: %s", retrieval_question)
+            raise PipelineError(f"Document retrieval failed: {error}") from error
 
         context = build_context(
             results,
@@ -55,14 +101,17 @@ class LawGenPipeline:
             context
         )
 
-        answer = self.llm.generate(prompt)
+        try:
+            answer = self.llm.generate(prompt)
+        except GemmaClientError as error:
+            logger.exception("LLM generation failed for question: %s", question)
+            raise PipelineError(f"Answer generation failed: {error}") from error
 
         return {
             "question": question,
             "reformulated_question": retrieval_question,
             "answer": answer,
-            "sources": self.format_sources
-                (self.select_main_sources(results)),
+            "sources": self.format_sources(self.select_main_sources(results)),
         }
 
 
@@ -99,4 +148,3 @@ class LawGenPipeline:
                 break
 
         return selected
-    
