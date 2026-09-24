@@ -115,20 +115,28 @@ def build_context(
 
 
 
-def build_legal_prompt(question: str, context: str) -> str:
+def build_legal_prompt(question: str, context: str, history=None) -> str:
+    conversation = ""
+    if history:
+        conversation = "\n".join(
+            f"{msg['role']}: {msg['content']}" for msg in history[-6:]  # cap it, don't let it grow forever
+        )
+
+    history_block = f"\nالمحادثة السابقة:\n{conversation}\n" if conversation else ""
 
     return f"""
 أنت مساعد قانوني ذكي متخصص في القانون الجزائري.
 
 مهمتك:
 - أجب فقط اعتمادا على المصادر القانونية المقدمة في السياق.
+- إذا كان السؤال الحالي يشير إلى المحادثة السابقة (مثل "اشرح أكثر" أو "وضح لي هذا")، استخدم المحادثة السابقة لفهم عمّا يتحدث المستخدم بالضبط قبل الإجابة.
 - لا تضف معلومات من خارج السياق.
 - إذا لم يكن السياق كافيا، قل: لا أتوفر على معلومات كافية من المصادر المتاحة للإجابة بثقة.
 - اذكر المرجع القانوني بوضوح: اسم الوثيقة، المادة أو عنوان النص، والصفحة إن وجدت.
 - اجعل الجواب واضحا ومختصرا.
 - لا تقدم استشارة قانونية نهائية، بل مساعدة معلوماتية مبنية على النصوص المتاحة.
-
-السؤال:
+{history_block}
+السؤال الحالي:
 {question}
 
 السياق القانوني المسترجع:

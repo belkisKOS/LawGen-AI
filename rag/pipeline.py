@@ -98,7 +98,8 @@ class LawGenPipeline:
 
         prompt = build_legal_prompt(
             question,
-            context
+            context,
+            history=history
         )
 
         try:

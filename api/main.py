@@ -1,3 +1,4 @@
+import json
 import sys
 import shutil
 import tempfile
@@ -5,7 +6,7 @@ from pathlib import Path
 from pathlib import Path as PathLib
 from typing import List, Optional
 
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -21,6 +22,8 @@ from rag.pipeline import LawGenPipeline, PipelineError
 from api.document_validation import check_basic_rules, classify_with_llm, DocumentValidationError
 from api.document_ingest import ingest_document, DocumentIngestError
 from ingestion.extract_generic import extract_text_generic
+from api.image_ask import answer_from_images, ImageAskError
+from api.document_ask import answer_from_documents, DocumentAskError
 
 
 app = FastAPI(
@@ -265,3 +268,67 @@ async def ingest_document_route(file: UploadFile = File(...)):
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
             pass
+
+
+@app.post("/ask-image")
+async def ask_image(
+    files: List[UploadFile] = File(...),
+    question: str = Form(""),
+    history: str = Form("[]"),
+):
+    if bot is None or not bot.ready:
+        detail = bot.init_error if bot else "Pipeline failed to initialize."
+        return JSONResponse(status_code=503, content={"detail": f"AI service is not ready: {detail}"})
+
+    try:
+        history_list = json.loads(history)
+    except Exception:
+        history_list = []
+
+    images = []
+    for f in files:
+        try:
+            content = await f.read()
+        except Exception as error:
+            return JSONResponse(status_code=500, content={"detail": f"Could not read {f.filename}: {error}"})
+        images.append((content, f.filename or "photo.jpg"))
+
+    try:
+        return answer_from_images(images, question, bot, history=history_list)
+    except ImageAskError as error:
+        return JSONResponse(status_code=400, content={"detail": str(error)})
+    except Exception as error:
+        logger.exception("Unexpected error on /ask-image")
+        return JSONResponse(status_code=500, content={"detail": f"Unexpected error: {error}"})
+
+
+@app.post("/ask-file")
+async def ask_file(
+    files: List[UploadFile] = File(...),
+    question: str = Form(""),
+    history: str = Form("[]"),
+):
+    if bot is None or not bot.ready:
+        detail = bot.init_error if bot else "Pipeline failed to initialize."
+        return JSONResponse(status_code=503, content={"detail": f"AI service is not ready: {detail}"})
+
+    try:
+        history_list = json.loads(history)
+    except Exception:
+        history_list = []
+
+    documents = []
+    for f in files:
+        try:
+            content = await f.read()
+        except Exception as error:
+            return JSONResponse(status_code=500, content={"detail": f"Could not read {f.filename}: {error}"})
+        documents.append((content, f.filename or "document"))
+
+    try:
+        return answer_from_documents(documents, question, bot, history=history_list)
+    except DocumentAskError as error:
+        return JSONResponse(status_code=400, content={"detail": str(error)})
+    except Exception as error:
+        logger.exception("Unexpected error on /ask-file")
+        return JSONResponse(status_code=500, content={"detail": f"Unexpected error: {error}"})

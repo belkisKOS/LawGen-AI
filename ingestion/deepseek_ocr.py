@@ -129,5 +129,45 @@ def main():
     print(f"Saved OCR output to: {output_path}")
 
 
+def encode_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    encoded = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _call_ocr_api(image_url: str) -> str:
+    api_key = os.getenv("DEEPSEEK_OCR_API_KEY")
+    base_url = os.getenv("DEEPSEEK_OCR_BASE_URL", "https://app.ai-grid.io/v1")
+    model = os.getenv("DEEPSEEK_OCR_MODEL", "deepseek-ocr")
+
+    if not api_key:
+        raise RuntimeError("Missing DEEPSEEK_OCR_API_KEY in .env")
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    prompt = "Extract all readable text from this document."
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        }],
+        max_tokens=1024,
+        temperature=0,
+    )
+    return response.choices[0].message.content or ""
+
+
+def run_ocr_on_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """
+    OCR a raw photo (camera/gallery) — not a PDF page.
+    Nothing here touches disk or Chroma.
+    """
+    image_url = encode_image_bytes(image_bytes, mime_type=mime_type)
+    return _call_ocr_api(image_url)
+
+
 if __name__ == "__main__":
     main()
